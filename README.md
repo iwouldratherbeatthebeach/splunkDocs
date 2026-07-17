@@ -56,65 +56,12 @@ splunk-docs-search/
 
 - **To crawl:** any box with Python 3.7+ and outbound HTTPS to
   help.splunk.com. (Not needed on the Splunk box itself.)
-- **To run:** a Splunk Enterprise instance. Splunk has **no native macOS/ARM64
-  build**, so on a Mac (incl. Apple Silicon) run Splunk in Docker (below); on a
-  Linux box use a normal Splunk install.
+- **To run:** a Splunk Enterprise instance.
 
 ---
 
-## Run it on another box — Docker (works on macOS, incl. M-series)
-
+## Run it on another box 
 This is the fastest way to stand it up on a fresh machine.
-
-**1. Start Splunk in Docker.** On Apple Silicon, enable Docker Desktop →
-Settings → General → *Use Rosetta for x86/amd64 emulation*, then:
-
-```bash
-docker run --platform linux/amd64 -d --name splunk \
-  -p 8000:8000 \
-  -e "SPLUNK_START_ARGS=--accept-license" \
-  -e "SPLUNK_PASSWORD=<choose-a-password>" \
-  splunk/splunk:latest
-docker logs -f splunk        # wait for "Ansible playbook complete"
-```
-
-**2. Install the app + crawl, from inside the container.** Open a root shell
-(`docker exec -it --user root splunk bash`) and run this as a single block:
-
-```bash
-cd /tmp && rm -rf splunkDocs-main repo.tgz && \
-curl -sL -o repo.tgz https://github.com/<you>/splunkDocs/archive/refs/heads/main.tar.gz && \
-tar xzf repo.tgz && cd splunkDocs-main && \
-cp -r splunk_docs_search /opt/splunk/etc/apps/splunk_docs_search && \
-/opt/splunk/bin/splunk cmd python3 -m pip install --quiet requests beautifulsoup4 reportlab && \
-/opt/splunk/bin/splunk cmd python3 ingest/fetch_splunk_docs.py \
-  --out /opt/splunk/etc/apps/splunk_docs_search/ndjson \
-  --pdf-dir /opt/splunk/etc/apps/splunk_docs_search/appserver/static/pdfs \
-  --max-pages 300
-```
-
-> Writing NDJSON into the app's own `ndjson/` folder matches the app's default
-> `inputs.conf` monitor path, so no path editing is needed.
-
-For the **full set** (~168k pages, hours-long, resumable), drop `--max-pages`
-and run it detached so a closed terminal doesn't kill it:
-
-```bash
-docker exec -d --user root splunk bash -c 'cd /tmp/splunkDocs-main && /opt/splunk/bin/splunk cmd python3 ingest/fetch_splunk_docs.py --out /opt/splunk/etc/apps/splunk_docs_search/ndjson --pdf-dir /opt/splunk/etc/apps/splunk_docs_search/appserver/static/pdfs --workers 8 --delay 0.2 > /opt/splunk/crawl.log 2>&1'
-docker exec splunk tail -n 5 /opt/splunk/crawl.log      # watch progress
-```
-
-**3. Restart so Splunk indexes the data and serves the PDFs:**
-
-```bash
-docker restart splunk
-```
-
-**4. Open** http://localhost:8000 → **Apps → Splunk Docs Search**. Verify:
-
-```spl
-index=splunk_docs | stats count by category
-```
 
 ## Run it on an existing Splunk box (Linux)
 
