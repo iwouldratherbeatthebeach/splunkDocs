@@ -1,0 +1,116 @@
+<form version="1.1" theme="light">
+  <label>Splunk Docs Search</label>
+  <description>Search and read the full Splunk documentation set ingested from help.splunk.com. Type keywords, filter by product/version, then click a result to read the page inline.</description>
+
+  <fieldset submitButton="true" autoRun="true">
+    <input type="text" token="kw">
+      <label>Keywords</label>
+      <default>*</default>
+      <initialValue>*</initialValue>
+    </input>
+    <input type="dropdown" token="prod" searchWhenChanged="true">
+      <label>Product</label>
+      <choice value="*">All products</choice>
+      <default>*</default>
+      <fieldForLabel>product</fieldForLabel>
+      <fieldForValue>product</fieldForValue>
+      <search>
+        <query>index=splunk_docs | stats count by product | sort - count | fields product</query>
+        <earliest>0</earliest>
+        <latest></latest>
+      </search>
+      <prefix>product="</prefix>
+      <suffix>"</suffix>
+    </input>
+    <input type="dropdown" token="ver" searchWhenChanged="true">
+      <label>Version</label>
+      <choice value="*">All versions</choice>
+      <default>*</default>
+      <fieldForLabel>version</fieldForLabel>
+      <fieldForValue>version</fieldForValue>
+      <search>
+        <query>index=splunk_docs | stats count by version | sort - version | fields version</query>
+        <earliest>0</earliest>
+        <latest></latest>
+      </search>
+      <prefix>version="</prefix>
+      <suffix>"</suffix>
+    </input>
+    <input type="dropdown" token="ctype" searchWhenChanged="true">
+      <label>Content type</label>
+      <choice value="*">All types</choice>
+      <default>*</default>
+      <fieldForLabel>content_type</fieldForLabel>
+      <fieldForValue>content_type</fieldForValue>
+      <search>
+        <query>index=splunk_docs | stats count by content_type | sort - count | fields content_type</query>
+        <earliest>0</earliest>
+        <latest></latest>
+      </search>
+      <prefix>content_type="</prefix>
+      <suffix>"</suffix>
+    </input>
+  </fieldset>
+
+  <row>
+    <panel>
+      <title>Matching documentation pages — click a row to read it</title>
+      <table>
+        <search>
+          <query>
+index=splunk_docs $kw$ $prod$ $ver$ $ctype$
+| eval last_modified=strftime(_time,"%Y-%m-%d")
+| table title product version content_type last_modified url
+| sort title
+          </query>
+          <earliest>0</earliest>
+          <latest></latest>
+        </search>
+        <option name="count">25</option>
+        <option name="drilldown">row</option>
+        <option name="wrap">true</option>
+        <drilldown>
+          <set token="doc_url">$row.url$</set>
+          <set token="doc_title">$row.title$</set>
+        </drilldown>
+        <format type="color" field="product">
+          <colorPalette type="sharedList"></colorPalette>
+        </format>
+      </table>
+    </panel>
+  </row>
+
+  <row depends="$doc_url$">
+    <panel>
+      <title>Reading: $doc_title$</title>
+      <html>
+        <p><a href="$doc_url$" target="_blank">Open the live page on help.splunk.com ↗</a></p>
+      </html>
+    </panel>
+  </row>
+  <row depends="$doc_url$">
+    <panel>
+      <table>
+        <title>Page content</title>
+        <search>
+          <query>
+index=splunk_docs url="$doc_url$"
+| head 1
+| eval line=split(body, "
+")
+| mvexpand line
+| streamstats count as n
+| table n line
+| rename line as "$doc_title$"
+          </query>
+          <earliest>0</earliest>
+          <latest></latest>
+        </search>
+        <option name="count">100</option>
+        <option name="wrap">true</option>
+        <option name="drilldown">none</option>
+        <fields>["$doc_title$"]</fields>
+      </table>
+    </panel>
+  </row>
+</form>

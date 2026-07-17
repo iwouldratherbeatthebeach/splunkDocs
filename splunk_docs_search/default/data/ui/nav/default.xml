@@ -1,0 +1,4 @@
+<nav search_view="doc_search">
+  <view name="doc_search" default="true" />
+  <view name="search" />
+</nav>
