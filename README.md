@@ -1,177 +1,118 @@
-# Splunk Docs Search
+# Splunk Docs Search (v2)
 
-Ingest the full Splunk documentation set from **help.splunk.com** into a
-dedicated Splunk index, then browse and search it with SPL from a purpose-built
-dashboard.
+Crawl the Splunk documentation set from **help.splunk.com** into a dedicated
+Splunk index, then search it and **read the whole page as a PDF, embedded right
+in the app** — with results grouped by product.
 
-This package has two parts:
+What's new in v2:
+
+- Generates a **PDF for every page** and displays it inline in an embedded
+  reader (no leaving Splunk).
+- Adds a reliable **`category`** field (Search Commands, Enterprise Security,
+  ITSI, SOAR, UBA, Cloud Platform, Add-ons, Style Guide, …) derived from the
+  URL, since Splunk's `Product` meta tag is blank on many pages.
+- **Nav bar grouped by product** ("Browse by product") plus a Product filter.
+- Cleaner UI; the old "purple square" product column and line-by-line reader
+  are gone.
 
 ```
-splunk_docs_app/
-├── ingest/                     # Python crawler that turns docs into NDJSON
-│   ├── fetch_splunk_docs.py
-│   ├── requirements.txt
+splunk-docs-search/
+├── ingest/
+│   ├── fetch_splunk_docs.py     # crawler: NDJSON + per-page PDFs
+│   ├── requirements.txt         # requests, beautifulsoup4, reportlab
 │   └── config.example.sh
-└── splunk_docs_search/         # The installable Splunk app
+└── splunk_docs_search/          # the Splunk app
     ├── default/
-    │   ├── app.conf
-    │   ├── indexes.conf        # creates the splunk_docs index
-    │   ├── inputs.conf         # monitors the crawler output dir
-    │   ├── props.conf          # NDJSON -> one page per event, JSON fields
+    │   ├── app.conf indexes.conf inputs.conf props.conf
     │   └── data/ui/
-    │       ├── nav/default.xml
-    │       └── views/doc_search.xml
+    │       ├── nav/default.xml           # grouped-by-product nav
+    │       └── views/doc_search.xml       # search + embedded PDF reader
+    ├── appserver/static/
+    │   ├── pdf_viewer.js          # injects the inline PDF iframe
+    │   ├── doc_search.css         # styling
+    │   └── pdfs/                  # generated PDFs are served from here
     └── metadata/default.meta
 ```
 
 ## How it works
 
-1. `fetch_splunk_docs.py` discovers every documentation URL from the portal's
-   XML sitemap(s), fetches each page, strips navigation/header/footer chrome,
-   and writes **one JSON object per page** to newline-delimited JSON (NDJSON)
-   files. Each record carries the page body plus metadata lifted straight from
-   the page's `<meta>` tags:
+1. `fetch_splunk_docs.py` discovers every doc URL from the portal sitemaps and,
+   for each page, (a) writes one JSON record (NDJSON) and (b) generates a clean
+   PDF with `reportlab`. Each record includes the searchable `body`, a derived
+   `category`, and a `pdf_file` name.
+2. A Splunk `monitor://` input ingests the NDJSON into the **`splunk_docs`**
+   index. `props.conf` (KV_MODE=json) exposes `category`, `title`, `url`,
+   `version`, `pdf_file`, etc. as fields; the full JSON line is the searchable
+   `_raw`.
+3. The **Splunk Docs Search** dashboard lets you keyword-search, filter by
+   product/type/version (or pick a product from the nav bar), and click any
+   result to render its full PDF inline. PDFs are served as app static assets
+   from `appserver/static/pdfs/` by `pdf_viewer.js`.
 
-   | field | example |
-   |-------|---------|
-   | `title` | `stats` |
-   | `product` | `Splunk Enterprise` |
-   | `version` | `9.4.2` |
-   | `genre` | `SPL and SPL2 References` |
-   | `content_type` | `Topic` |
-   | `section` / `breadcrumb` | `splunk-enterprise / search / ... / stats` |
-   | `url` | canonical help.splunk.com link |
-   | `last_modified` | page's own last-updated timestamp |
-   | `body` | cleaned article text |
+## Step 1 — Crawl (writes NDJSON + PDFs)
 
-2. Splunk's `monitor://` input ingests those NDJSON files into the
-   **`splunk_docs`** index. `props.conf` breaks one event per line and exposes
-   the JSON keys as fields at search time. The full JSON line is the searchable
-   `_raw`, so plain keyword search matches anything in a page's body.
-
-3. The **Splunk Docs Search** dashboard lets you type keywords, filter by
-   product / version / content type, and click any result to read the page text
-   inline (with a link back to the live page).
-
-## Step 1 — Run the crawler
-
-Run this on any machine with Python 3.9+ and outbound access to
-`help.splunk.com` (it does **not** have to be the Splunk server):
+Run on any machine with Python 3.7+ and access to help.splunk.com:
 
 ```bash
 cd ingest
 pip install -r requirements.txt
 
-# Full crawl of the entire portal (all products). Expect this to take a while
-# and produce a few GB of NDJSON; the crawler is polite and resumable.
-python fetch_splunk_docs.py --out /opt/splunk/splunk_docs_ingest
+# Test run: 200 pages. PDFs go straight into the app so the viewer can serve them.
+python fetch_splunk_docs.py \
+  --out ./data \
+  --pdf-dir ../splunk_docs_search/appserver/static/pdfs \
+  --max-pages 200
 ```
 
-Useful flags:
-
-```bash
-# Smaller test run (first 200 pages):
-python fetch_splunk_docs.py --out ./data --max-pages 200
-
-# Limit to specific products:
-python fetch_splunk_docs.py --out ./data \
-    --include-product "Splunk Enterprise" \
-    --include-product "Splunk Cloud Platform"
-
-# Tune politeness / speed:
-python fetch_splunk_docs.py --out ./data --workers 4 --delay 0.3
-```
-
-The crawler keeps a `.crawl_state.json` in the output directory, so re-running
-it resumes where it left off and only fetches new/unseen pages — handy for a
-scheduled refresh (e.g. weekly cron).
-
-> **Note on scope & etiquette.** "All Splunk product docs" is large. Start with
-> `--max-pages` or `--include-product` to validate the pipeline end to end,
-> then remove the cap for the full mirror. Keep `--workers`/`--delay` modest so
-> you stay a courteous client of help.splunk.com, and check that your use is
-> consistent with Splunk's terms of use before mirroring the whole site.
+Handy flags: `--include-category "Search Commands"` (one product group),
+`--no-pdf` (search only), no `--max-pages` for the full mirror (large, and
+resumable via `.crawl_state.json`).
 
 ## Step 2 — Install the app
 
-Two options:
+**A. Packaged app (`.spl`)** — Splunk Web → **Apps → Manage Apps → Install app
+from file**, upload `splunk_docs_search.spl`, restart. (If you installed the
+`.spl`, put your generated PDFs into
+`$SPLUNK_HOME/etc/apps/splunk_docs_search/appserver/static/pdfs/`.)
 
-**A. Install the packaged app (`.spl`)** — in Splunk Web go to
-**Apps → Manage Apps → Install app from file**, upload `splunk_docs_search.spl`,
-then restart.
-
-**B. Copy the raw app directory** — drop it into your apps folder:
+**B. Raw app directory:**
 
 ```bash
 cp -r splunk_docs_search $SPLUNK_HOME/etc/apps/
 ```
 
-Then edit **`$SPLUNK_HOME/etc/apps/splunk_docs_search/default/inputs.conf`**:
-
-- set the monitor path to the crawler's `--out` directory, and
-- change `disabled = true` to `disabled = false`.
-
-```ini
-[monitor:///opt/splunk/splunk_docs_ingest]
-disabled   = false
-index      = splunk_docs
-sourcetype = splunk_docs
-whitelist  = \.ndjson$
-crcSalt    = <SOURCE>
-```
-
-Restart Splunk (or reload):
+Then edit `default/inputs.conf` (or add `local/inputs.conf`): point the
+`monitor://` path at your crawler `--out` dir and set `disabled = false`.
+Restart Splunk:
 
 ```bash
 $SPLUNK_HOME/bin/splunk restart
 ```
 
-> For production, put local overrides in a `local/` directory rather than
-> editing `default/` (standard Splunk practice). A `local/inputs.conf` with
-> your real path and `disabled = false` is the cleanest approach.
+> After adding a big batch of PDFs to `appserver/static/pdfs/`, restart Splunk
+> so the web tier serves the new files.
 
-## Step 3 — Search
+## Step 3 — Search & read
 
-Open **Apps → Splunk Docs Search**. The dashboard gives you keyword search plus
-product / version / content-type filters, and an inline reader.
+Open **Apps → Splunk Docs Search**. Use the Product dropdown or the "Browse by
+product" nav menu, search keywords, and click a row to read its PDF inline.
 
-Or search directly in SPL:
+SPL examples:
 
 ```spl
-# Every page that mentions "tstats"
 index=splunk_docs tstats
-
-# stats command page for Enterprise 9.4, newest first
-index=splunk_docs title="stats" product="Splunk Enterprise" version=9.4*
-| sort - last_modified
-| table title version last_modified url
-
-# How many pages per product
-index=splunk_docs | stats count by product | sort - count
-
-# Pull the readable body of one page
-index=splunk_docs url="https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/9.4/search-commands/stats"
-| head 1 | table body
-```
-
-## Refreshing on a schedule
-
-Re-run the crawler on a cron (it's incremental via the state file) and the
-monitor input picks up new shards automatically:
-
-```cron
-# Refresh Splunk docs every Sunday at 02:00
-0 2 * * 0 cd /path/to/ingest && /usr/bin/python3 fetch_splunk_docs.py --out /opt/splunk/splunk_docs_ingest >> /var/log/splunk_docs_crawl.log 2>&1
+index=splunk_docs category="Enterprise Security" | stats count by content_type
+index=splunk_docs category="Search Commands" title="stats" | table title version url pdf_file
 ```
 
 ## Notes & limitations
 
-- Pages on help.splunk.com are server-rendered, so no headless browser is
-  needed. If Splunk later moves to a fully client-rendered layout, add a
-  Playwright fetch step in `fetch_splunk_docs.py` (the parsing stage is already
-  isolated in `parse_page`).
-- Older docs still on `docs.splunk.com` (legacy MediaWiki) are not crawled by
-  default. Point `--base-url`/`--sitemap` at that host to include them; the
-  meta-tag extraction is help.splunk.com specific but the body extraction is
-  generic.
-- The index defaults to 5 GB max and a 10-year retention. Tune `indexes.conf`.
+- **PDF display** uses an `<iframe>` injected by `pdf_viewer.js` into the
+  dashboard (Simple XML strips iframes from static HTML, so JS does it). PDFs
+  must live under the app's `appserver/static/pdfs/`.
+- **Scale:** `appserver/static` is fine for tens of thousands of PDFs locally.
+  For the full ~168k-page mirror, serve PDFs from a dedicated web server/volume
+  and point `staticBase()` in `pdf_viewer.js` at that base URL.
+- PDFs are text-rendered from the cleaned page content (reportlab), so they're
+  clean and searchable-in-viewer but not pixel-identical to the web page.
+- The index defaults to 5 GB / 10-year retention — tune `indexes.conf`.

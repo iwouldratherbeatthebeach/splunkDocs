@@ -1,0 +1,71 @@
+/* Splunk Docs Search — visual overhaul */
+
+.dashboard-body { background: #f5f7fa; }
+
+.dashboard-header h2,
+.dashboard-view-controls + .dashboard-body h1 { font-weight: 600; }
+
+/* count chip */
+.sds-counts { padding: 2px 0 6px; }
+.sds-chip {
+    display: inline-block;
+    background: #eaf5e1;
+    color: #3c6e12;
+    border: 1px solid #cbe6b3;
+    padding: 3px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* results table */
+table td, table th { font-size: 13px; line-height: 1.4; }
+table th { text-transform: none; }
+td.string, td.multiValue { color: #23282e; }
+
+/* embedded PDF reader */
+#pdf-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 2px 10px;
+    border-bottom: 1px solid #e3e8ee;
+    margin-bottom: 10px;
+}
+#pdf-title {
+    font-weight: 600;
+    font-size: 15px;
+    color: #1a1c20;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+#pdf-open {
+    font-size: 12px;
+    white-space: nowrap;
+    color: #3863A0;
+    text-decoration: none;
+}
+#pdf-open:hover { text-decoration: underline; }
+
+iframe.pdf-frame {
+    width: 100%;
+    height: 82vh;
+    min-height: 640px;
+    border: 1px solid #d3dbe3;
+    border-radius: 8px;
+    background: #fff;
+}
+.pdf-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 640px;
+    color: #9aa7b4;
+    font-size: 14px;
+    text-align: center;
+    border: 1px dashed #d3dbe3;
+    border-radius: 8px;
+    background: #fff;
+}

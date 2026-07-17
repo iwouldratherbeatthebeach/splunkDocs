@@ -1,40 +1,28 @@
-<form version="1.1" theme="light">
+<form version="1.1" theme="light" script="pdf_viewer.js" stylesheet="doc_search.css">
   <label>Splunk Docs Search</label>
-  <description>Search and read the full Splunk documentation set ingested from help.splunk.com. Type keywords, filter by product/version, then click a result to read the page inline.</description>
+  <description>Search the full Splunk documentation set, filter by product, and read the whole page as a PDF inline.</description>
 
-  <fieldset submitButton="true" autoRun="true">
-    <input type="text" token="kw">
+  <fieldset submitButton="false" autoRun="true">
+    <input type="text" token="kw" searchWhenChanged="true">
       <label>Keywords</label>
       <default>*</default>
       <initialValue>*</initialValue>
     </input>
-    <input type="dropdown" token="prod" searchWhenChanged="true">
+    <input type="dropdown" token="cat" searchWhenChanged="true">
       <label>Product</label>
       <choice value="*">All products</choice>
       <default>*</default>
-      <fieldForLabel>product</fieldForLabel>
-      <fieldForValue>product</fieldForValue>
+      <fieldForLabel>category</fieldForLabel>
+      <fieldForValue>category</fieldForValue>
       <search>
-        <query>index=splunk_docs | stats count by product | sort - count | fields product</query>
+        <query>index=splunk_docs | stats count by category | sort - count | fields category</query>
         <earliest>0</earliest>
         <latest></latest>
       </search>
-      <prefix>product="</prefix>
-      <suffix>"</suffix>
-    </input>
-    <input type="dropdown" token="ver" searchWhenChanged="true">
-      <label>Version</label>
-      <choice value="*">All versions</choice>
-      <default>*</default>
-      <fieldForLabel>version</fieldForLabel>
-      <fieldForValue>version</fieldForValue>
-      <search>
-        <query>index=splunk_docs | stats count by version | sort - version | fields version</query>
-        <earliest>0</earliest>
-        <latest></latest>
-      </search>
-      <prefix>version="</prefix>
-      <suffix>"</suffix>
+      <change>
+        <condition value="*"><set token="catf"></set></condition>
+        <condition><set token="catf">category="$value$"</set></condition>
+      </change>
     </input>
     <input type="dropdown" token="ctype" searchWhenChanged="true">
       <label>Content type</label>
@@ -47,70 +35,81 @@
         <earliest>0</earliest>
         <latest></latest>
       </search>
-      <prefix>content_type="</prefix>
-      <suffix>"</suffix>
+      <change>
+        <condition value="*"><set token="ctypef"></set></condition>
+        <condition><set token="ctypef">content_type="$value$"</set></condition>
+      </change>
+    </input>
+    <input type="dropdown" token="ver" searchWhenChanged="true">
+      <label>Version</label>
+      <choice value="*">All versions</choice>
+      <default>*</default>
+      <fieldForLabel>version</fieldForLabel>
+      <fieldForValue>version</fieldForValue>
+      <search>
+        <query>index=splunk_docs version=* | stats count by version | sort - version | fields version</query>
+        <earliest>0</earliest>
+        <latest></latest>
+      </search>
+      <change>
+        <condition value="*"><set token="verf"></set></condition>
+        <condition><set token="verf">version="$value$"</set></condition>
+      </change>
     </input>
   </fieldset>
 
   <row>
     <panel>
-      <title>Matching documentation pages — click a row to read it</title>
-      <table>
-        <search>
-          <query>
-index=splunk_docs $kw$ $prod$ $ver$ $ctype$
-| eval last_modified=strftime(_time,"%Y-%m-%d")
-| table title product version content_type last_modified url
-| sort title
-          </query>
-          <earliest>0</earliest>
-          <latest></latest>
-        </search>
-        <option name="count">25</option>
-        <option name="drilldown">row</option>
-        <option name="wrap">true</option>
-        <drilldown>
-          <set token="doc_url">$row.url$</set>
-          <set token="doc_title">$row.title$</set>
-        </drilldown>
-        <format type="color" field="product">
-          <colorPalette type="sharedList"></colorPalette>
-        </format>
-      </table>
-    </panel>
-  </row>
-
-  <row depends="$doc_url$">
-    <panel>
-      <title>Reading: $doc_title$</title>
       <html>
-        <p><a href="$doc_url$" target="_blank">Open the live page on help.splunk.com ↗</a></p>
+        <div class="sds-counts">
+          <span class="sds-chip">Total pages: <strong id="sds-total">–</strong></span>
+        </div>
       </html>
     </panel>
   </row>
-  <row depends="$doc_url$">
+
+  <row>
+    <!-- LEFT: results list -->
     <panel>
+      <title>Documentation pages — click a row to read it</title>
       <table>
-        <title>Page content</title>
         <search>
           <query>
-index=splunk_docs url="$doc_url$"
-| head 1
-| eval line=split(body, "
-")
-| mvexpand line
-| streamstats count as n
-| table n line
-| rename line as "$doc_title$"
+index=splunk_docs $kw$ $catf$ $ctypef$ $verf$
+| eval updated=strftime(_time,"%Y-%m-%d")
+| eval version=if(isnull(version) OR version="","—",version)
+| table category title version content_type updated pdf_file url
+| sort category title
           </query>
           <earliest>0</earliest>
           <latest></latest>
         </search>
-        <option name="count">100</option>
+        <option name="count">20</option>
+        <option name="drilldown">row</option>
         <option name="wrap">true</option>
-        <option name="drilldown">none</option>
-        <fields>["$doc_title$"]</fields>
+        <option name="rowNumbers">false</option>
+        <!-- hide the raw file/url helper columns; JS still reads them via tokens -->
+        <fields>["category","title","version","content_type","updated"]</fields>
+        <drilldown>
+          <set token="pdf_file">$row.pdf_file$</set>
+          <set token="doc_title">$row.title$</set>
+          <set token="doc_url">$row.url$</set>
+        </drilldown>
       </table>
+    </panel>
+
+    <!-- RIGHT: embedded PDF reader (populated by pdf_viewer.js) -->
+    <panel>
+      <title>Reader</title>
+      <html>
+        <div id="pdf-toolbar">
+          <span id="pdf-title">Select a document to read</span>
+          <a id="pdf-open" href="$doc_url$" target="_blank" rel="noopener">Open live page ↗</a>
+        </div>
+        <div id="pdfview">
+          <div class="pdf-empty">Select a document in the list to view its full PDF here.</div>
+        </div>
+      </html>
     </panel>
   </row>
 </form>
