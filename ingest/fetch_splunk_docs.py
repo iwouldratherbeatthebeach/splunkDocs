@@ -412,6 +412,11 @@ def write_pdf(record: dict, path: str) -> bool:
             else:
                 flow.append(Paragraph(_para(block), ss["DocBody"]))
         doc.build(flow)
+        # world-readable so Splunk can serve it regardless of who ran the crawl
+        try:
+            os.chmod(path, 0o644)
+        except OSError:
+            pass
         return True
     except Exception:
         return False
@@ -438,6 +443,12 @@ class ShardWriter:
         ts = datetime.now(timezone.utc).strftime("%Y%m%d")
         path = os.path.join(self.out_dir, f"splunk_docs_{ts}_{self.idx:04d}.ndjson")
         self.fh = open(path, "w", encoding="utf-8")
+        # world-readable so Splunk's monitor input can read it regardless of
+        # which user ran the crawl (root vs splunk vs staging user)
+        try:
+            os.chmod(path, 0o644)
+        except OSError:
+            pass
         self.bytes_written = 0
 
     def write(self, record: dict):
