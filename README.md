@@ -1,154 +1,130 @@
-# Splunk Docs Search
+# Splunk Docs Search (v3 — offline HTML docs browser)
 
-Crawl the Splunk documentation set from **help.splunk.com** into a dedicated
-Splunk index, then search it and **read each page as a PDF, embedded right in
-the app** — with results grouped by product.
+Browse Splunk product documentation **inside Splunk, offline** — faithful HTML
+topics with product tabs, a **version picker (keep N newest, configurable)**,
+client-side search, and dark mode — plus a **Configuration page** to download or
+update the docs from help.splunk.com and watch progress live. Docs are also
+indexed for SPL search.
 
-- One JSON event per doc page (full-text searchable via SPL).
-- A generated PDF per page, rendered inline in the dashboard.
-- A reliable `category` field (Search Commands, Enterprise Security, ITSI,
-  SOAR, UBA, Cloud Platform, Add-ons, Style Guide, …) for grouping/filtering.
-- Product filter, cascading Version filter, content-type filter, and a
-  "Browse by product" nav menu.
-- Self-contained and offline-friendly — ideal for airgapped networks.
+Design inspired by the open-source `gosplunk/splunk-offline-docs` (Apache-2.0,
+Joe Hagan), rebuilt here in this app.
 
----
-
-## Repository layout
+## Layout
 
 ```
-splunk-docs-search/
-├── ingest/
-│   ├── fetch_splunk_docs.py     # crawler: NDJSON + per-page PDFs
-│   ├── requirements.txt         # requests, beautifulsoup4, reportlab
-│   └── config.example.sh
-├── scripts/
-│   ├── build_offline_bundle.sh  # STAGING (online): crawl -> checksummed bundle
-│   └── install_airgapped.sh     # OFFLINE Splunk: verify + install bundle
-├── splunk_docs_search/          # the Splunk app (self-contained)
-│   ├── default/
-│   │   ├── app.conf indexes.conf inputs.conf props.conf
-│   │   └── data/ui/{nav,views}/…
-│   ├── appserver/static/
-│   │   ├── pdf_viewer.js  doc_search.css
-│   │   └── pdfs/                # generated PDFs served from here
-│   ├── ndjson/                  # crawled events; monitored by inputs.conf
-│   └── metadata/default.meta
-└── splunk_docs_search.spl       # packaged app (skeleton, no bulk data)
+splunk_docs_search/               # the Splunk app
+├── appserver/static/
+│   ├── docs.html/js/css          # offline docs browser (tabs, versions, search, dark mode)
+│   ├── config.html/js            # download/update page (calls the REST backend)
+│   ├── about.html                # about page
+│   ├── *_shell.js                # embed static pages into the dashboard views
+│   └── docdata/                  # (generated) topics/, assets/, nav.json, search_index.json, docs.ndjson
+├── bin/
+│   ├── docs_handler.py           # persistent REST handler (/docs_admin)
+│   └── docs_service.py           # status, launch scraper, update-check, settings
+├── scraper/
+│   ├── fetch_docs.py             # the HTML-topic scraper (runnable standalone)
+│   ├── products.yaml             # which products + how many versions
+│   └── requirements.txt          # requests, beautifulsoup4
+├── default/                      # app.conf, restmap.conf, web.conf, indexes/inputs/props, views, nav
+└── metadata/default.meta
 ```
 
 ## How it works
 
-1. `fetch_splunk_docs.py` discovers every doc URL from the portal sitemaps and,
-   per page, writes one NDJSON record and generates a PDF (reportlab). Records
-   include the searchable `body`, a derived `category`, and a `pdf_file`.
-2. A Splunk `monitor://` input ingests the NDJSON into the **`splunk_docs`**
-   index. `props.conf` (KV_MODE=json) exposes the fields; the full JSON line is
-   the searchable `_raw`.
-3. The **Splunk Docs Search** dashboard searches, filters, and renders the
-   selected page's PDF inline (`pdf_viewer.js` serves it from the app's static
-   dir). Generated files are written world-readable (0644) so Splunk can serve
-   them no matter who ran the crawl.
+The scraper fetches topics from help.splunk.com per `products.yaml`, keeps the
+newest N versions of each product, downloads images, rewrites inter-topic links
+to local paths, and writes into `appserver/static/docdata/`:
 
----
+- `topics/<hash>.html` — one standalone HTML page per topic
+- `assets/` — images + shared `topic.css`
+- `nav.json` — product → version → topic list (drives the browser)
+- `search_index.json` — client-side search
+- `docs.ndjson` — one event per topic for the **`splunk_docs`** index (SPL Search)
 
-## Prerequisites
+The **Documentation** view renders the browser; **Configuration** triggers the
+scraper and shows status; **SPL Search** is the indexed full-text view.
 
-- **To crawl:** any box with Python 3.7+ and outbound HTTPS to
-  help.splunk.com. (Not needed on the Splunk box itself.)
-- **To run:** a Splunk Enterprise instance.
+## Getting the docs in — two ways
 
----
+### A. From the app (Splunk host has internet)
 
-## Run it on another box 
-This is the fastest way to stand it up on a fresh machine.
+1. Ensure the scraper's deps are available to the interpreter Splunk will use:
+   ```bash
+   $SPLUNK_HOME/bin/splunk cmd python3 -m pip install requests beautifulsoup4
+   ```
+2. Open **Splunk Docs Search → Configuration** and click **Download / update
+   (incremental)** or **Full refresh**. Progress and a live log appear on the
+   page; the docs browser fills in as topics land.
+   - Restart Splunk once after a large first download so the web tier serves all
+     the new static topic files.
 
-## Run it on an existing Splunk box (Linux)
+### B. Standalone scraper (air-gapped)
+
+On an internet-connected staging host, populate the app's `docdata/`, then move
+the whole app across the gap:
 
 ```bash
-# 1) crawl on any internet-connected host
-cd ingest && pip install -r requirements.txt
-python3 fetch_splunk_docs.py \
-  --out ./out/ndjson --pdf-dir ./out/pdfs --max-pages 300
+cd splunk_docs_search/scraper
+pip install -r requirements.txt
+python3 fetch_docs.py --data-dir ../appserver/static/docdata --mode full
+# (optional smaller run: add --limit 500)
+```
 
-# 2) install the app
+Then copy `splunk_docs_search/` into `$SPLUNK_HOME/etc/apps/` on the offline
+box, `chown -R splunk:splunk`, and restart. Everything (topics, images, nav,
+search index, index feed) travels inside the app — no internet needed to use it.
+
+## Configure coverage / versions
+
+Edit `scraper/products.yaml`:
+
+```yaml
+products:
+  es8:
+    title: Enterprise Security
+    root_path: splunk-enterprise-security-8
+    versions: all        # all | <N newest>
+  itsi:
+    title: IT Service Intelligence
+    root_path: splunk-it-service-intelligence
+    versions: 2
+```
+
+`versions: N` keeps the N newest version branches; `all` keeps every version;
+unversioned topics are always kept.
+
+## Install
+
+```bash
 cp -r splunk_docs_search $SPLUNK_HOME/etc/apps/
-cp ./out/ndjson/*.ndjson $SPLUNK_HOME/etc/apps/splunk_docs_search/ndjson/
-cp ./out/pdfs/*.pdf      $SPLUNK_HOME/etc/apps/splunk_docs_search/appserver/static/pdfs/
-
-# 3) restart
+chown -R splunk:splunk $SPLUNK_HOME/etc/apps/splunk_docs_search
 $SPLUNK_HOME/bin/splunk restart
 ```
 
-Or install the packaged `splunk_docs_search.spl` via **Apps → Manage Apps →
-Install app from file**, then drop your `.ndjson` and `.pdf` files into the two
-folders above and restart.
+Requires **Splunk Enterprise (on-prem)** — the Configuration page uses a custom
+REST endpoint, which Splunk Cloud does not permit. The `splunk_docs_search.spl`
+package installs the app shell (no bundled docs); populate `docdata/` via A or B.
 
-## Airgapped deployment
+## Status of this build
 
-The app is self-contained (data, PDFs, dashboards, config all inside the app),
-so it moves as one package with **no network or dependencies on the offline
-side**.
-
-```bash
-# On an internet-connected staging host:
-scripts/build_offline_bundle.sh                 # full crawl -> dist/splunk_docs_offline_<date>.tar.gz
-scripts/build_offline_bundle.sh --max-pages 1000 # smaller test bundle
-
-# Carry the tarball across the gap, then on the offline Splunk host:
-SPLUNK_HOME=/opt/splunk scripts/install_airgapped.sh splunk_docs_offline_<date>.tar.gz
-$SPLUNK_HOME/bin/splunk restart
-```
-
-`install_airgapped.sh` verifies every file against `SHA256SUMS` before
-installing. Nothing in the app calls the internet (Splunk's bundled JS + local
-PDFs only), so it's safe for disconnected/classified environments.
-
-## Using the app
-
-- **Keywords** searches the full page text; **Product / Content type /
-  Version** filter the list (Version cascades from the selected Product).
-- **Browse by product** in the top nav jumps straight to a filtered view.
-- **Click any row** to render that page's PDF in the Reader pane, with a link
-  to the live page.
-
-Useful SPL:
-
-```spl
-index=splunk_docs tstats
-index=splunk_docs category="Enterprise Security" | stats count by content_type
-index=splunk_docs category="Search Commands" title="stats" | table title version url pdf_file
-```
-
-## Refreshing
-
-Re-run the crawler (incremental via `.crawl_state.json`) and restart Splunk;
-new shards/PDFs are picked up automatically. Good candidate for a weekly cron
-(online) or a periodic re-bundle (airgap).
+- Verified here: Python compiles; REST handler dispatch (status/update/check/
+  settings) returns correctly; all views/conf/JS are syntactically valid; the
+  scraper's config parsing, version filter, link rewriting, nav/search/NDJSON
+  output all work against fixtures.
+- Needs on-Splunk testing (no Splunk in the build environment): the live REST
+  round-trip from the Configuration page, the dashboard iframe embedding, and a
+  real end-to-end scrape. Treat as v3.0 — solid foundation, expect small
+  tweaks when you first run it on your instance.
 
 ## Troubleshooting
 
-- **PDF opens but is blank / Reader empty:** almost always a file the web tier
-  can't read or hasn't picked up yet.
-  - New files added after Splunk started aren't served until a **restart** (or
-    `http://<host>:8000/en-US/_bump`, then reload with a `?v=2` cache-buster).
-  - If you crawled as a different user (e.g. root) on an older build, ownership
-    could block reads; this build writes PDFs `0644`, and a
-    `chown -R splunk:splunk $SPLUNK_HOME/etc/apps/splunk_docs_search` clears any
-    leftovers.
-- **Filters/dashboard changes don't take effect:** Splunk caches views. Reload
-  via `http://<host>:8000/en-US/debug/refresh` (uses your login session) or
-  restart Splunk.
-- **`Argument list too long` when listing PDFs:** use `find … -name '*.pdf'`
-  instead of a shell `*.pdf` glob (there can be 100k+ files).
-- **Blank `version` column:** expected — many pages (Add-ons, Style Guide) carry
-  no version in their source metadata; shown as "—".
-
-## Notes & limitations
-
-- **Scale:** serving PDFs from `appserver/static` is fine for tens of thousands
-  of files. For the full ~168k-page mirror, serve PDFs from a dedicated web
-  server/volume and point `staticBase()` in `pdf_viewer.js` at that base URL.
-- PDFs are text-rendered from cleaned page content (reportlab): clean and
-  searchable, not pixel-identical to the web page.
-- The index defaults to 5 GB / 10-year retention — tune `indexes.conf`.
+- **Config page can't reach backend:** confirm on-prem Splunk + admin role;
+  `restmap.conf`/`web.conf` register `/docs_admin`. Check
+  `$SPLUNK_HOME/var/log/splunk/splunkd.log` for handler errors.
+- **Download starts but no topics:** the interpreter in **Settings → python**
+  (defaults to splunkd's) needs `requests`/`beautifulsoup4`; see step A.1.
+- **New topics don't render:** restart Splunk (static files are registered at
+  startup), then hard-refresh the browser.
+- **Blank version column / dropdown:** some pages have no version in metadata;
+  they group under "Unversioned".

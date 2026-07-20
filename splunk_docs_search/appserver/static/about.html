@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>About — Splunk Docs Search</title>
+  <style>
+    body{margin:0;font:15px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1a1c20;background:#f5f7fa}
+    .wrap{max-width:760px;margin:0 auto;padding:28px}
+    h1{color:#65A637;margin:0 0 6px}
+    h2{font-size:15px;text-transform:uppercase;letter-spacing:.04em;color:#5b6770;margin:24px 0 8px}
+    code{background:rgba(127,127,127,.15);padding:1px 5px;border-radius:4px}
+    .card{background:#fff;border:1px solid #e3e8ee;border-radius:10px;padding:18px;margin-top:12px}
+    ul{margin:6px 0 0;padding-left:20px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Splunk Docs Search</h1>
+    <p>Browse Splunk product documentation offline — faithful HTML topics with a
+       version picker, search, and dark mode — inside Splunk.</p>
+
+    <div class="card">
+      <h2>Views</h2>
+      <ul>
+        <li><strong>Documentation</strong> — the offline docs browser (product tabs, version dropdown, search, dark mode).</li>
+        <li><strong>SPL Search</strong> — full-text search over the indexed topics for power users.</li>
+        <li><strong>Configuration</strong> — download or update docs from help.splunk.com and watch progress.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>How docs get here</h2>
+      <p>The Configuration page runs <code>scraper/fetch_docs.py</code> on the
+         Splunk host, which fetches topics from help.splunk.com into
+         <code>appserver/static/docdata/</code> (HTML topics, images, nav, and a
+         search index) and an NDJSON feed for the <code>splunk_docs</code> index.
+         You can also run the scraper standalone on a staging host and copy the
+         <code>docdata/</code> folder in — ideal for air-gapped installs.</p>
+      <p>Coverage and how many versions to keep are set in
+         <code>scraper/products.yaml</code>.</p>
+    </div>
+
+    <div class="card">
+      <h2>Credits</h2>
+      <p>Design inspired by the open-source
+         <code>gosplunk/splunk-offline-docs</code> (Apache-2.0, Joe Hagan).
+         Documentation content © Splunk Inc., for licensed Splunk deployments
+         per Splunk's documentation terms.</p>
+    </div>
+  </div>
+</body>
+</html>

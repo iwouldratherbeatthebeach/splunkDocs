@@ -1,25 +1,6 @@
-<nav search_view="doc_search" color="#65A637">
-  <view name="doc_search" default="true" />
-
-  <!-- Top-bar grouping by product/category. Each link opens the search
-       dashboard pre-filtered to that category (form.cat token). -->
-  <collection label="Browse by product">
-    <a href="doc_search?form.cat=Search%20Commands">Search Commands</a>
-    <a href="doc_search?form.cat=Splunk%20Enterprise">Splunk Enterprise</a>
-    <a href="doc_search?form.cat=Cloud%20Platform">Cloud Platform</a>
-    <divider />
-    <a href="doc_search?form.cat=Enterprise%20Security">Enterprise Security</a>
-    <a href="doc_search?form.cat=ITSI">ITSI</a>
-    <a href="doc_search?form.cat=SOAR">SOAR</a>
-    <a href="doc_search?form.cat=UBA">UBA</a>
-    <a href="doc_search?form.cat=Security%20Offerings">Security Offerings</a>
-    <divider />
-    <a href="doc_search?form.cat=Observability">Observability</a>
-    <a href="doc_search?form.cat=AppDynamics">AppDynamics</a>
-    <a href="doc_search?form.cat=Data%20Management">Data Management</a>
-    <a href="doc_search?form.cat=Add-ons">Add-ons</a>
-    <a href="doc_search?form.cat=Style%20Guide">Style Guide</a>
-  </collection>
-
-  <view name="search" />
+<nav search_view="spl_search" color="#65A637">
+  <view name="docs" default="true" />
+  <view name="spl_search" />
+  <view name="config" />
+  <view name="about" />
 </nav>

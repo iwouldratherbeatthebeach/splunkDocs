@@ -1,0 +1,10 @@
+<dashboard version="1.1" script="config_shell.js" hideChrome="true">
+  <label>Configuration</label>
+  <row>
+    <panel>
+      <html>
+        <div id="config-root"></div>
+      </html>
+    </panel>
+  </row>
+</dashboard>

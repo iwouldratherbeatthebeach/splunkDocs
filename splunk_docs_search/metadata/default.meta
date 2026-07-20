@@ -1,6 +1,3 @@
-#
-# Share the app's knowledge objects (views, nav, sourcetype) at the app level.
-#
 []
 access = read : [ * ], write : [ admin, power ]
 export = system

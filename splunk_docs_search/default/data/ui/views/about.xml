@@ -1,0 +1,10 @@
+<dashboard version="1.1" script="about_shell.js" hideChrome="true">
+  <label>About</label>
+  <row>
+    <panel>
+      <html>
+        <div id="about-root"></div>
+      </html>
+    </panel>
+  </row>
+</dashboard>

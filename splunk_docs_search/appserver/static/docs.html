@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Splunk Docs</title>
+  <link rel="stylesheet" href="docs.css" />
+</head>
+<body>
+  <div id="sdx" class="sdx">
+    <aside class="sdx-side">
+      <div class="sdx-brand">
+        <span class="sdx-logo">◆</span> Splunk Docs
+        <button id="sdx-theme" class="sdx-theme" title="Toggle dark mode">🌓</button>
+      </div>
+      <input id="sdx-search" class="sdx-search" type="search" placeholder="Search all docs…" autocomplete="off" />
+      <div id="sdx-tabs" class="sdx-tabs"></div>
+      <div class="sdx-verrow">
+        <label>Version</label>
+        <select id="sdx-version" class="sdx-version"></select>
+      </div>
+      <nav id="sdx-list" class="sdx-list" aria-label="Topics"></nav>
+    </aside>
+    <main class="sdx-main">
+      <div id="sdx-status" class="sdx-empty">Loading documentation…</div>
+      <iframe id="sdx-frame" class="sdx-frame" title="Documentation topic" hidden></iframe>
+    </main>
+  </div>
+  <script src="docs.js"></script>
+</body>
+</html>

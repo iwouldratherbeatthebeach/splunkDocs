@@ -1,0 +1,44 @@
+# Product catalog for the Splunk Docs offline scraper.
+#
+# Each product maps a friendly title to its help.splunk.com root path and how
+# many doc versions to keep.
+#   versions: N        -> keep the N newest versions found under this product
+#   versions: all      -> keep every version
+#   versions: 1        -> latest only
+# Unversioned topics (no x.y[.z] segment in the URL) are always kept.
+#
+# Edit this file (or the Configuration page) to change coverage.
+
+defaults:
+  versions: 2            # default N-newest when a product doesn't override
+
+products:
+  enterprise:
+    title: Splunk Enterprise
+    root_path: splunk-enterprise
+    versions: 2
+  cloud:
+    title: Splunk Cloud Platform
+    root_path: splunk-cloud-platform
+    versions: 1
+  es8:
+    title: Enterprise Security
+    root_path: splunk-enterprise-security-8
+    versions: all
+  itsi:
+    title: IT Service Intelligence
+    root_path: splunk-it-service-intelligence
+    versions: 2
+  soar:
+    title: SOAR (On-premises)
+    root_path: splunk-soar/soar-on-premises
+    versions: 2
+    exclude_path_contains: [soar-cloud, splunk-soar-cloud]
+  uba:
+    title: User Behavior Analytics
+    root_path: security-offerings/splunk-user-behavior-analytics
+    versions: 2
+  addons:
+    title: Supported Add-ons
+    root_path: supported-add-ons
+    versions: 1

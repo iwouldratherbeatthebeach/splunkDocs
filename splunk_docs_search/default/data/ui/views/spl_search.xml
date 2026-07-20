@@ -1,0 +1,46 @@
+<form version="1.1" theme="light">
+  <label>SPL Search</label>
+  <description>Power-user full-text search over the indexed documentation. (The Documentation tab has the friendly browser.)</description>
+  <fieldset submitButton="false" autoRun="true">
+    <input type="text" token="kw" searchWhenChanged="true">
+      <label>Keywords</label>
+      <default>*</default>
+      <initialValue>*</initialValue>
+    </input>
+    <input type="dropdown" token="prod" searchWhenChanged="true">
+      <label>Product</label>
+      <choice value="*">All products</choice>
+      <default>*</default>
+      <fieldForLabel>product_title</fieldForLabel>
+      <fieldForValue>product_title</fieldForValue>
+      <search>
+        <query>index=splunk_docs | stats count by product_title | sort - count | fields product_title</query>
+        <earliest>0</earliest>
+      </search>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Matching topics</title>
+      <table>
+        <search>
+          <query>
+index=splunk_docs $kw$
+| eval product_title=if(isnull(product_title) OR product_title="","Other",product_title)
+| search product_title=$prod|s$
+| eval version=if(isnull(version) OR version="","—",version)
+| table product_title title version content_type url
+| sort product_title title
+          </query>
+          <earliest>0</earliest>
+        </search>
+        <option name="count">25</option>
+        <option name="drilldown">row</option>
+        <option name="wrap">true</option>
+        <drilldown>
+          <link target="_blank">$row.url$</link>
+        </drilldown>
+      </table>
+    </panel>
+  </row>
+</form>
